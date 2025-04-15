@@ -86,6 +86,10 @@ class VideoProcessor:
             base_name = os.path.splitext(os.path.basename(video_path))[0]
             output_dir = os.path.join(self.processed_dir, base_name)
             
+            # Verifica se deve reprocessar
+            if not force_reprocess and self.is_video_processed(video_path, base_name):
+                return True, f"Vídeo já processado anteriormente. Resultados em: {output_dir}"
+            
             # Verificação do vídeo
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
