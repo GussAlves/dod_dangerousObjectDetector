@@ -2,38 +2,35 @@
 
 ## Como executar
 
-Crie um ambiente virtual Python:  ``` python -m venv venv ```
-
-Ative o ambiente virtual:
-
 ```
-Windows: venv\Scripts\activate
+# 1. Ativar venv
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate    # Windows
 
-Linux/Mac: source venv/bin/activate
+# 2. Instalar dependências
+pip install -r requirements.txt
+
+# 3. Executar o programa (a partir da raiz!)
+python -m app.main
 ```
-
-Instale as dependências: ``` pip install -r requirements.txt ```
-
-Execute o aplicativo na pasta raiz: ``` python -m app.main  ```
-
 
 ### Estrutura do projeto
 ```
 /meu_projeto
-│
 ├── /app
-│   ├── main.py              # Ponto de entrada principal
-│   ├── /ui                  # Arquivos de interface
+│   ├── __init__.py
+│   ├── main.py
+│   ├── /ui
+│   │   ├── __init__.py
 │   │   └── main_window.py
 │   └── /core
-│       ├── processor.py     # Lógica de processamento
-│       └── utils.py         # Funções auxiliares
-│
+│       ├── __init__.py
+│       ├── processor.py
+│       └── utils.py
 ├── /data
-│   ├── /input               # Vídeos a serem processados
-│   ├── /processed           # Vídeos processados (framizados)
-│   └── /reports             # Relatórios gerados
-│
-├── requirements.txt         # Dependências do projeto
+│   ├── /input          # (Pasta para vídeos não processados)
+│   ├── /processed      # (Pasta para vídeos processados)
+│   └── /reports        # (Pasta para relatórios)
+├── requirements.txt
 └── README.md
 ```
