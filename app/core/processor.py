@@ -70,14 +70,15 @@ class VideoProcessor:
                     return True
         return False
 
-    def process_video(self, video_path, user_email, force_reprocess=False):
+    def process_video(self, video_path, user_email, force_reprocess=False, progress_callback=None):
         """
-        Processa um vídeo com opção de forçar reprocessamento
+        Processa um vídeo com possibilidade de acompanhamento de progresso
         
         Args:
-            video_path: Caminho do vídeo a ser processado
-            user_email: Email do usuário para registro
-            force_reprocess: Se True, ignora cache e reprocessa
+            video_path: Caminho do vídeo
+            user_email: Email do usuário
+            force_reprocess: Se True, ignora cache
+            progress_callback: Função para reportar progresso (recebe % e mensagem)
         """
         try:
             if not self.model:
@@ -88,29 +89,62 @@ class VideoProcessor:
             
             # Verifica se deve reprocessar
             if not force_reprocess and self.is_video_processed(video_path, base_name):
+                if progress_callback:
+                    progress_callback(100, "Vídeo já processado - usando cache")
                 return True, f"Vídeo já processado anteriormente. Resultados em: {output_dir}"
             
             # Verificação do vídeo
+            if progress_callback:
+                progress_callback(10, "Verificando vídeo...")
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
                 return False, "Não foi possível abrir o vídeo"
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             cap.release()
 
             # Remove resultados anteriores se existirem
             if os.path.exists(output_dir):
                 shutil.rmtree(output_dir)
             
-            # Gera novo timestamp para reprocessamento
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            # Processamento com acompanhamento manual do progresso
+            if progress_callback:
+                progress_callback(20, f"Iniciando processamento de {total_frames} frames...")
             
-            # Processamento
-            results = self.model.track(
-                source=video_path,
-                save=True,
-                project=self.processed_dir,
-                name=base_name,
-                exist_ok=False
-            )
+            results = []
+            cap = cv2.VideoCapture(video_path)
+            frame_count = 0
+            
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                    
+                frame_count += 1
+                result = self.model.track(
+                    frame,
+                    persist=True,
+                    verbose=False
+                )
+                results.extend(result)
+                
+                # Atualiza progresso
+                if progress_callback and total_frames > 0:
+                    percent = 20 + int((frame_count / total_frames) * 70)
+                    progress_callback(percent, f"Processando frame {frame_count}/{total_frames}")
+            
+            cap.release()
+            
+            if progress_callback:
+                progress_callback(95, "Gerando relatório...")
+            
+            # Gera relatório
+            report_content = self._generate_report(video_path, user_email, results)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            report_filename = f"report_{base_name}_{timestamp}.txt"
+            report_path = os.path.join(self.reports_dir, report_filename)
+            
+            with open(report_path, 'w', encoding='utf-8') as f:
+                f.write(report_content)
             
             # Atualiza cache
             self.cache[base_name] = {
@@ -121,30 +155,31 @@ class VideoProcessor:
             }
             self.save_cache()
             
-            # Relatório com novo timestamp
-            report_content = self._generate_report(video_path, user_email, results)
-            report_filename = f"report_{base_name}_{timestamp}.txt"
-            report_path = os.path.join(self.reports_dir, report_filename)
+            if progress_callback:
+                progress_callback(100, "Processamento concluído!")
             
-            with open(report_path, 'w', encoding='utf-8') as f:
-                f.write(report_content)
-            
-            return True, f"Processamento {'re' if force_reprocess else ''}concluído!\nResultados em: {output_dir}\nRelatório: {report_filename}"
+            return True, f"Processamento {'re' if force_reprocess else ''}concluído! Resultados em: {output_dir}"
             
         except Exception as e:
+            if progress_callback:
+                progress_callback(0, f"Erro: {str(e)}")
             return False, f"Erro no processamento: {str(e)}"
     
     def _generate_report(self, video_path, user_email, results):
+        """Gera o relatório de processamento"""
+        if not results:
+            return "Nenhum resultado para gerar relatório"
+            
         report = f"""Relatório de Processamento - YOLOv8
-        Data/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-        Usuário: {user_email}
-        Vídeo processado: {os.path.basename(video_path)}
+Data/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Usuário: {user_email}
+Vídeo processado: {os.path.basename(video_path)}
 
-        Estatísticas:
-        - Tempo por frame: {results[0].speed['inference']} ms
-        - Objetos detectados: {len(results[0].boxes)}
+Estatísticas:
+- Tempo por frame: {results[0].speed['inference']} ms
+- Objetos detectados: {sum(len(r.boxes) for r in results)}
 
-        Detalhes das detecções:"""
+Detalhes das detecções:"""
 
         for i, result in enumerate(results):
             report += f"\n\nFrame {i+1}:"
@@ -154,7 +189,7 @@ class VideoProcessor:
         return report
 
     def clear_processing_cache(self, video_name=None):
-        """Limpa o cache de processamento para um vídeo específico ou todos"""
+        """Limpa o cache de processamento"""
         if video_name:
             if video_name in self.cache:
                 del self.cache[video_name]

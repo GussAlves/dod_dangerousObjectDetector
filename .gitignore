@@ -5,6 +5,6 @@
 **/*.pyo
 **/*.pyd
 **/*.db 
-**/app/__pycache__
+**/app/ui/__pycache__
 
 **/data
