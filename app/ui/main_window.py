@@ -2,12 +2,15 @@ import os
 import cv2
 from PyQt5.QtWidgets import (
     QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QLabel,
-    QLineEdit, QPushButton, QFileDialog, QMessageBox, 
-    QDesktopWidget, QProgressBar
+    QLineEdit, QPushButton, QMessageBox, QDesktopWidget,
+    QProgressBar, QComboBox, QGroupBox, QFileDialog  # Adicionei QFileDialog aqui
 )
-from PyQt5.QtCore import QThread, pyqtSignal, Qt
+from PyQt5.QtCore import QThread, pyqtSignal, Qt, pyqtRemoveInputHook  # Adicionei pyqtRemoveInputHook
 from PyQt5.QtGui import QImage, QPixmap
 from app.core.processor import VideoProcessor
+
+# Remover o aviso do QSocketNotifier
+pyqtRemoveInputHook()
 
 class ProcessingThread(QThread):
     finished = pyqtSignal(bool, str)
@@ -22,10 +25,8 @@ class ProcessingThread(QThread):
     
     def run(self):
         try:
-            # Estágio 1: Preparação (10%)
             self.progress_updated.emit(10, "Preparando para processamento...")
             
-            # Estágio 2: Carregamento do vídeo (20%)
             cap = cv2.VideoCapture(self.video_path)
             if not cap.isOpened():
                 raise Exception("Não foi possível abrir o vídeo")
@@ -33,18 +34,16 @@ class ProcessingThread(QThread):
             cap.release()
             self.progress_updated.emit(20, f"Vídeo carregado ({total_frames} frames)")
             
-            # Estágio 3: Processamento (20-90%)
             success, message = self.processor.process_video(
                 self.video_path, 
                 self.email,
                 self.force_reprocess,
-                self.progress_updated.emit  # Passa o emitter diretamente
+                self.progress_updated.emit
             )
             
             if not success:
                 raise Exception(message)
             
-            # Estágio 4: Finalização (90-100%)
             self.progress_updated.emit(95, "Gerando relatório...")
             self.progress_updated.emit(100, "Processamento concluído!")
             self.finished.emit(True, message)
@@ -57,16 +56,33 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Processador de Vídeos YOLOv8")
-        self.setFixedSize(900, 550)
-        
-        # Centraliza a janela
+        self.setFixedSize(1000, 600)
         self.center_window()
         
         # Widgets
         self.email_label = QLabel("E-mail do usuário:")
         self.email_input = QLineEdit()
         self.email_input.setPlaceholderText("seu@email.com")
-        self.select_file_btn = QPushButton("Selecionar Vídeo")
+
+        # Grupo para seleção de vídeo
+        video_group = QGroupBox("Seleção de Vídeo")
+        video_layout = QVBoxLayout()
+        
+        # Opção 1: Lista de vídeos locais
+        self.local_video_combobox = QComboBox()
+        self.refresh_videos_btn = QPushButton("Atualizar lista local")
+        
+        # Opção 2: Selecionar arquivo externo
+        self.select_file_btn = QPushButton("Selecionar Vídeo Externo")
+        
+        video_layout.addWidget(QLabel("Vídeos locais (data/input):"))
+        video_layout.addWidget(self.local_video_combobox)
+        video_layout.addWidget(self.refresh_videos_btn)
+        video_layout.addWidget(QLabel("Ou:"))
+        video_layout.addWidget(self.select_file_btn)
+        video_group.setLayout(video_layout)
+
+        # Botões de ação
         self.process_btn = QPushButton("Processar Vídeo")
         self.reprocess_btn = QPushButton("Reprocessar Vídeo")
         self.reprocess_btn.setEnabled(False)
@@ -78,41 +94,24 @@ class MainWindow(QMainWindow):
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setTextVisible(True)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #ccc;
-                border-radius: 5px;
-                text-align: center;
-                height: 20px;
-            }
-            QProgressBar::chunk {
-                background-color: #4CAF50;
-                width: 10px;
-            }
-        """)
         
-        # Label de status
+        # Status
         self.status_label = QLabel("Pronto para processar vídeo")
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet("color: #666; font-style: italic;")
         
-        # Configuração da pré-visualização
+        # Pré-visualização
         self.video_preview = QLabel()
         self.video_preview.setAlignment(Qt.AlignCenter)
         self.video_preview.setFixedSize(640, 360)
         self.video_preview.setText("Pré-visualização aparecerá aqui")
-        self.video_preview.setStyleSheet("""
-            border: 2px solid #ccc;
-            border-radius: 5px;
-            background-color: #f0f0f0;
-        """)
+        self.video_preview.setStyleSheet("border: 2px solid #ccc; border-radius: 5px;")
         
         # Layout
         left_panel = QVBoxLayout()
         left_panel.setSpacing(15)
         left_panel.addWidget(self.email_label)
         left_panel.addWidget(self.email_input)
-        left_panel.addWidget(self.select_file_btn)
+        left_panel.addWidget(video_group)
         left_panel.addWidget(self.process_btn)
         left_panel.addWidget(self.reprocess_btn)
         left_panel.addWidget(self.cancel_btn)
@@ -122,15 +121,17 @@ class MainWindow(QMainWindow):
         
         main_layout = QHBoxLayout()
         main_layout.setContentsMargins(20, 20, 20, 20)
-        main_layout.addLayout(left_panel)
-        main_layout.addWidget(self.video_preview)
+        main_layout.addLayout(left_panel, 40)
+        main_layout.addWidget(self.video_preview, 60)
         
         container = QWidget()
         container.setLayout(main_layout)
         self.setCentralWidget(container)
         
         # Conexões
-        self.select_file_btn.clicked.connect(self.select_file)
+        self.refresh_videos_btn.clicked.connect(self.refresh_video_list)
+        self.local_video_combobox.currentIndexChanged.connect(self.on_local_video_selected)
+        self.select_file_btn.clicked.connect(self.select_external_file)
         self.process_btn.clicked.connect(self.process_video)
         self.reprocess_btn.clicked.connect(self.reprocess_video)
         self.cancel_btn.clicked.connect(self.cancel_processing)
@@ -139,33 +140,86 @@ class MainWindow(QMainWindow):
         self.selected_file = None
         self.processor = VideoProcessor()
         self.processing_thread = None
-    
+        
+        # Inicialização
+        self.refresh_video_list()
+        self.setup_styles()
+
+    def setup_styles(self):
+        self.setStyleSheet("""
+            QGroupBox {
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 15px;
+                font-weight: bold;
+            }
+            QProgressBar {
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                height: 20px;
+            }
+            QProgressBar::chunk {
+                background-color: #4CAF50;
+            }
+        """)
+
     def center_window(self):
-        """Centraliza a janela na tela"""
         frame = self.frameGeometry()
         center_point = QDesktopWidget().availableGeometry().center()
         frame.moveCenter(center_point)
         self.move(frame.topLeft())
-    
-    def select_file(self):
+
+    def refresh_video_list(self):
+        """Atualiza a lista de vídeos locais"""
+        self.local_video_combobox.clear()
+        
+        input_dir = "data/input"
+        if not os.path.exists(input_dir):
+            os.makedirs(input_dir, exist_ok=True)
+        
+        video_files = [f for f in os.listdir(input_dir) 
+                      if f.lower().endswith(('.mp4', '.avi', '.mov', '.mkv'))]
+        
+        self.local_video_combobox.addItem("-- Selecione um vídeo local --")
+        if video_files:
+            self.local_video_combobox.addItems(sorted(video_files))
+            self.update_status(f"{len(video_files)} vídeo(s) local(is) encontrado(s)")
+        else:
+            self.local_video_combobox.addItem("Nenhum vídeo local encontrado")
+            self.update_status("Adicione vídeos na pasta data/input")
+
+    def on_local_video_selected(self, index):
+        """Quando um vídeo local é selecionado"""
+        if index > 0:
+            video_file = self.local_video_combobox.currentText()
+            self.selected_file = os.path.join("data/input", video_file)
+            self.show_video_preview(self.selected_file)
+            self.update_status(f"Vídeo local selecionado: {video_file}")
+            self.enable_processing_buttons(True)
+
+    def select_external_file(self):
+        """Seleciona um vídeo externo"""
         file_path, _ = QFileDialog.getOpenFileName(
-            self, 
-            "Selecionar Vídeo", 
-            "", 
-            "Vídeos (*.mp4 *.avi *.mov);;Todos os arquivos (*)"
+            self, "Selecionar Vídeo", "", 
+            "Vídeos (*.mp4 *.avi *.mov *.mkv);;Todos os arquivos (*)"
         )
+        
         if file_path:
             self.selected_file = file_path
             self.show_video_preview(file_path)
-            self.reprocess_btn.setEnabled(True)
-            self.update_status(f"Vídeo selecionado: {os.path.basename(file_path)}")
-            QMessageBox.information(
-                self, 
-                "Sucesso", 
-                f"Vídeo selecionado:\n{os.path.basename(file_path)}"
-            )
-    
+            self.update_status(f"Vídeo externo selecionado: {os.path.basename(file_path)}")
+            self.enable_processing_buttons(True)
+            # Reseta a seleção local
+            self.local_video_combobox.setCurrentIndex(0)
+
+    def enable_processing_buttons(self, enable):
+        """Ativa/desativa botões de processamento"""
+        self.process_btn.setEnabled(enable)
+        self.reprocess_btn.setEnabled(enable)
+
     def show_video_preview(self, video_path):
+        """Exibe o primeiro frame do vídeo como pré-visualização"""
         try:
             cap = cv2.VideoCapture(video_path)
             ret, frame = cap.read()
@@ -174,14 +228,16 @@ class MainWindow(QMainWindow):
             if ret:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 h, w, ch = frame.shape
-                bytes_per_line = ch * w
-                q_img = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
-                self.video_preview.setPixmap(QPixmap.fromImage(q_img).scaled(
-                    640, 360, Qt.KeepAspectRatio, Qt.SmoothTransformation
-                ))
+                q_img = QImage(frame.data, w, h, ch * w, QImage.Format_RGB888)
+                self.video_preview.setPixmap(
+                    QPixmap.fromImage(q_img).scaled(
+                        640, 360, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                    )
+                )
         except Exception as e:
             print(f"Erro na pré-visualização: {e}")
-    
+            self.video_preview.setText("Não foi possível carregar a pré-visualização")
+
     def process_video(self, force_reprocess=False):
         email = self.email_input.text()
         if not email or "@" not in email:
