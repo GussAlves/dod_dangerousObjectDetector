@@ -1,0 +1,7 @@
+names:
+  0: knife
+  1: scissors
+path: C:\Users\ddzn\Desktop\borakibora\dataset_yolov8
+test: .\images\test\
+train: .\images\train\
+val: .\images\val\

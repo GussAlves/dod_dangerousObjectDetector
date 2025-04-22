@@ -1,0 +1,6 @@
+train: ./dataset_yolov8\train/images
+val: ./dataset_yolov8\val/images
+test: ./dataset_yolov8\test/images  # Opcional
+
+nc: 2
+names: ['knife', 'scissors']
