@@ -6,7 +6,9 @@ import numpy as np
 # Esse escript foi feito para detectar objetos usando a camera do computador
 cap = cv2.VideoCapture(0)
 
-model = YOLO("yolov8n.pt")
+# model = YOLO("yolov8n.pt")
+
+model = YOLO("treinamento_yolo/runs/detect/treino_customizado7/weights/best.pt")
 
 track_history = defaultdict(lambda: [])
 seguir = True
