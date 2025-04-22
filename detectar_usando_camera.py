@@ -1,59 +1,128 @@
 from ultralytics import YOLO
 import cv2
-from collections import defaultdict
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
+from datetime import datetime
+import time
 import numpy as np
 
-# Esse escript foi feito para detectar objetos usando a camera do computador
-cap = cv2.VideoCapture(0)
+# Configurações de e-mail
+EMAIL_CONFIG = {
+    'sender': 'astolfotheduck@gmail.com',
+    'password': 'xekhhaakldgqbudh',  
+    'receiver': 'gadaguitarra@gmail.com',
+    'smtp_server': 'smtp.gmail.com',
+    'smtp_port': 587
+}
 
-# model = YOLO("yolov8n.pt")
+# Controle de tempo entre e-mails
+last_email_time = 0
+EMAIL_COOLDOWN = 300  # 5 minutos entre e-mails
 
-model = YOLO("treinamento_yolo/runs/detect/treino_customizado7/weights/best.pt")
+def send_alert_email(object_type, detection_frame):
+    """Função para enviar e-mail de alerta com imagem anexada"""
+    try:
+        # Configurar mensagem
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_CONFIG['sender']
+        msg['To'] = EMAIL_CONFIG['receiver']
+        msg['Subject'] = f"ALERTA: {object_type} detectado!"
+        
+        # Corpo do e-mail em HTML
+        body = f"""
+        <h2>Alerta de Segurança</h2>
+        <p>Objeto <strong>{object_type}</strong> detectado em {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
+        <p>Este é um alerta automático do sistema de vigilância.</p>
+        <p><img src="cid:detection_image" width="640"></p>
+        """
+        msg.attach(MIMEText(body, 'html'))
 
-track_history = defaultdict(lambda: [])
-seguir = True
-deixar_rastro = True
+        # Converter frame para JPEG em memória
+        _, buffer = cv2.imencode('.jpg', detection_frame)
+        detection_bytes = buffer.tobytes()
 
-while True:
-    success, img = cap.read()
+        # Anexar imagem
+        img_part = MIMEImage(detection_bytes)
+        img_part.add_header('Content-ID', '<detection_image>')
+        img_part.add_header('Content-Disposition', 'attachment; filename="detection.jpg"')
+        msg.attach(img_part)
 
-    if success:
-        if seguir:
-            results = model.track(img, persist=True)
-        else:
-            results = model(img)
+        # Enviar e-mail
+        with smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port']) as server:
+            server.starttls()
+            server.login(EMAIL_CONFIG['sender'], EMAIL_CONFIG['password'])
+            server.send_message(msg)
+        
+        print(f"E-mail com imagem enviado para {EMAIL_CONFIG['receiver']}")
+        return True
+    
+    except Exception as e:
+        print(f"Falha ao enviar e-mail: {str(e)}")
+        return False
 
-        # Process results list
+def main():
+    global last_email_time
+    
+    # Iniciar câmera
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("Erro: Não foi possível acessar a câmera")
+        return
+
+    # Carregar modelo YOLO
+    model = YOLO("treinamento_yolo/runs/detect/treino_customizado7/weights/best.pt")
+
+    print("Sistema iniciado - pressione 'q' para sair")
+    
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            continue
+
+        # Fazer uma cópia do frame original para possível envio
+        original_frame = frame.copy()
+
+        # Detecção de objetos
+        results = model.track(frame, persist=True)
+        
+        # Verificar detecções
+        knife_detected = False
+        detection_frame = None
+        
         for result in results:
-            # Visualize the results on the frame
-            img = result.plot()
+            if result.boxes is not None:
+                for box, cls in zip(result.boxes.xyxy.cpu(), result.boxes.cls.cpu()):
+                    class_name = model.names[int(cls)]
+                    
+                    # Se detectar faca
+                    if class_name == "knife":
+                        knife_detected = True
+                        # Criar frame com a detecção para enviar
+                        detection_frame = result.plot()
+                        
+            # Mostrar resultados na tela
+            frame = result.plot()
+        
+        # Processar detecção de faca
+        if knife_detected and detection_frame is not None:
+            current_time = time.time()
+            if current_time - last_email_time > EMAIL_COOLDOWN:
+                if send_alert_email("knife", detection_frame):
+                    last_email_time = current_time
+                    print("Alerta de faca enviado com imagem")
 
-            if seguir and deixar_rastro:
-                try:
-                    # Get the boxes and track IDs
-                    boxes = result.boxes.xywh.cpu()
-                    track_ids = result.boxes.id.int().cpu().tolist()
+        # Exibir frame
+        cv2.imshow("Detector de Objetos", frame)
+        
+        # Sair ao pressionar 'q'
+        if cv2.waitKey(1) == ord('q'):
+            break
 
-                    # Plot the tracks
-                    for box, track_id in zip(boxes, track_ids):
-                        x, y, w, h = box
-                        track = track_history[track_id]
-                        track.append((float(x), float(y)))  # x, y center point
-                        if len(track) > 30:  # retain 90 tracks for 90 frames
-                            track.pop(0)
+    cap.release()
+    cv2.destroyAllWindows()
+    print("Sistema encerrado")
 
-                        # Draw the tracking lines
-                        points = np.hstack(track).astype(np.int32).reshape((-1, 1, 2))
-                        cv2.polylines(img, [points], isClosed=False, color=(230, 0, 0), thickness=5)
-                except:
-                    pass
-
-        cv2.imshow("Tela", img)
-
-    k = cv2.waitKey(1)
-    if k == ord('q'):
-        break
-
-cap.release()
-cv2.destroyAllWindows()
-print("desligando")
+if __name__ == "__main__":
+    main()
