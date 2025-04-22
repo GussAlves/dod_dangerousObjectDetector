@@ -5,8 +5,8 @@ Para este treinamento foi realizado a extração de imagens e labels utilizando 
 ## Visão Geral
 Este projeto consiste em dois scripts principais:
 
-1. download_dataset.py - Baixa e prepara um dataset no formato YOLOv8
-2.train_model.py - Realiza o treinamento de um modelo YOLOv8 customizado
+1. download_dataset.py - Baixa e prepara um dataset no formato YOLOv8    
+2. train_model.py - Realiza o treinamento de um modelo YOLOv8 customizado    
 
 ## Pré-requisitos
 - Python 3.8 ou superior
