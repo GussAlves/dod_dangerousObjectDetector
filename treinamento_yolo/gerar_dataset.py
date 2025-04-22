@@ -8,10 +8,10 @@ from multiprocessing import freeze_support
 def main():
     # Configurações
     CLASSES = ["knife", "scissors"]
-    EXPORT_DIR = "./dataset_yolov8"  # Diretório principal
-    TRAIN_SAMPLES = 1200  # Número de imagens de treino
-    VAL_SAMPLES = 500    # Número de imagens de validação
-    TEST_SAMPLES = 200   # Número de imagens de teste
+    EXPORT_DIR = "./dataset_yolov8"  # Diretório de exportação
+    TRAIN_SAMPLES = 1200  
+    VAL_SAMPLES = 500    
+    TEST_SAMPLES = 200  
 
     # Criar diretório se não existir
     os.makedirs(EXPORT_DIR, exist_ok=True)

@@ -3,12 +3,12 @@ import torch
 
 def main():
     # 1. Carregar modelo
-    model = YOLO("yolov8n.pt")  # Ou seu modelo personalizado
+    model = YOLO("../yolov8n.pt")  
 
     # 2. Treinamento
     model.train(
-        data="C:/Users/ddzn/Desktop/borakibora/dataset_yolov8/dataset.yaml",
-        epochs=300,
+        data="dataset_yolov8/dataset.yaml",
+        epochs=300, 
         batch=16,
         imgsz=640,
         device=0 if torch.cuda.is_available() else 'cpu',  # Usa GPU se disponível
