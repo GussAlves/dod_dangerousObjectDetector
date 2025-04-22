@@ -7,4 +7,15 @@
 **/*.db 
 **/app/ui/__pycache__
 
-**/data
+**/data/processed/frames
+**/data/processed/frames/*
+**/data/processed/frames/*.png
+**/data/processed/frames/*.jpg
+**/data/processed/frames/*.jpeg
+**/data/processed/frames/*.mp4
+**/data/processed/frames/*.avi
+**/data/processed/frames/*.mov
+**/data/processed/frames/*.mkv
+**/data/processed/frames/*.webm
+
+**/data/reports/*

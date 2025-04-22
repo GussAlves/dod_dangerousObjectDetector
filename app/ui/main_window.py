@@ -3,13 +3,12 @@ import cv2
 from PyQt5.QtWidgets import (
     QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QLabel,
     QLineEdit, QPushButton, QMessageBox, QDesktopWidget,
-    QProgressBar, QComboBox, QGroupBox, QFileDialog  # Adicionei QFileDialog aqui
+    QProgressBar, QComboBox, QGroupBox, QFileDialog  
 )
-from PyQt5.QtCore import QThread, pyqtSignal, Qt, pyqtRemoveInputHook  # Adicionei pyqtRemoveInputHook
+from PyQt5.QtCore import QThread, pyqtSignal, Qt, pyqtRemoveInputHook  
 from PyQt5.QtGui import QImage, QPixmap
 from app.core.processor import VideoProcessor
 
-# Remover o aviso do QSocketNotifier
 pyqtRemoveInputHook()
 
 class ProcessingThread(QThread):
