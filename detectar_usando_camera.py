@@ -11,15 +11,15 @@ import numpy as np
 # Configurações de e-mail
 EMAIL_CONFIG = {
     'sender': 'astolfotheduck@gmail.com',
-    'password': 'xekhhaakldgqbudh',  
+    'password': 'xekhhaakldgqbudh',
     'receiver': 'gadaguitarra@gmail.com',
     'smtp_server': 'smtp.gmail.com',
     'smtp_port': 587
 }
 
-# Controle de tempo entre e-mails
-last_email_time = 0
-EMAIL_COOLDOWN = 300  # 5 minutos entre e-mails
+# Variáveis globais de configuração
+EMAIL_COOLDOWN = 10  # 10 segundos entre e-mails
+ENABLE_EMAIL = True  # Controla o envio de e-mails
 
 def send_alert_email(object_type, detection_frame):
     """Função para enviar e-mail de alerta com imagem anexada"""
@@ -63,7 +63,7 @@ def send_alert_email(object_type, detection_frame):
         return False
 
 def main():
-    global last_email_time
+    global ENABLE_EMAIL, last_email_time
     
     # Iniciar câmera
     cap = cv2.VideoCapture(0)
@@ -75,14 +75,15 @@ def main():
     model = YOLO("treinamento_yolo/runs/detect/treino_customizado7/weights/best.pt")
 
     print("Sistema iniciado - pressione 'q' para sair")
+    print(f"Status do envio de e-mails: {'ATIVADO' if ENABLE_EMAIL else 'DESATIVADO'}")
+    print("Pressione 'e' para alternar o envio de e-mails durante a execução")
+    
+    last_email_time = 0
     
     while True:
         ret, frame = cap.read()
         if not ret:
             continue
-
-        # Fazer uma cópia do frame original para possível envio
-        original_frame = frame.copy()
 
         # Detecção de objetos
         results = model.track(frame, persist=True)
@@ -109,16 +110,23 @@ def main():
         if knife_detected and detection_frame is not None:
             current_time = time.time()
             if current_time - last_email_time > EMAIL_COOLDOWN:
-                if send_alert_email("knife", detection_frame):
-                    last_email_time = current_time
-                    print("Alerta de faca enviado com imagem")
+                if ENABLE_EMAIL:
+                    if send_alert_email("knife", detection_frame):
+                        last_email_time = current_time
+                        print("Alerta de faca enviado com imagem")
+                else:
+                    print("Detecção de faca (envio de e-mails desativado)")
 
         # Exibir frame
         cv2.imshow("Detector de Objetos", frame)
         
-        # Sair ao pressionar 'q'
-        if cv2.waitKey(1) == ord('q'):
+        # Verificar comandos do teclado
+        key = cv2.waitKey(1)
+        if key == ord('q'):
             break
+        elif key == ord('e'):
+            ENABLE_EMAIL = not ENABLE_EMAIL
+            print(f"Envio de e-mails {'ATIVADO' if ENABLE_EMAIL else 'DESATIVADO'}")
 
     cap.release()
     cv2.destroyAllWindows()
