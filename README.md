@@ -1,5 +1,7 @@
 # DOD - Dangerous Object Detector
 
+| Link para video - https://youtu.be/W0jL1Gjx6QA
+
 ## Como executar
 
 ```

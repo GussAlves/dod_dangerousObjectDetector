@@ -12,7 +12,7 @@ import numpy as np
 EMAIL_CONFIG = {
     'sender': 'astolfotheduck@gmail.com',
     'password': 'xekhhaakldgqbudh',
-    'receiver': 'gadaguitarra@gmail.com',
+    'receiver': 'gus.alves.araujo@gmail.com',
     'smtp_server': 'smtp.gmail.com',
     'smtp_port': 587
 }
