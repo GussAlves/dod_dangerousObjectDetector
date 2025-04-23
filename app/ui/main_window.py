@@ -43,7 +43,7 @@ class ProcessingThread(QThread):
             if not success:
                 raise Exception(message)
             
-            self.progress_updated.emit(95, "Gerando relatório...")
+            self.progress_updated.emit(95, "Finalizando...")
             self.progress_updated.emit(100, "Processamento concluído!")
             self.finished.emit(True, message)
             
@@ -54,12 +54,12 @@ class ProcessingThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Processador de Vídeos YOLOv8")
+        self.setWindowTitle("Sistema de Detecção de Facas")
         self.setFixedSize(1000, 600)
         self.center_window()
         
         # Widgets
-        self.email_label = QLabel("E-mail do usuário:")
+        self.email_label = QLabel("E-mail para relatório:")
         self.email_input = QLineEdit()
         self.email_input.setPlaceholderText("seu@email.com")
 
@@ -67,12 +67,10 @@ class MainWindow(QMainWindow):
         video_group = QGroupBox("Seleção de Vídeo")
         video_layout = QVBoxLayout()
         
-        # Opção 1: Lista de vídeos locais
         self.local_video_combobox = QComboBox()
-        self.refresh_videos_btn = QPushButton("Atualizar lista local")
+        self.refresh_videos_btn = QPushButton("Atualizar lista")
         
-        # Opção 2: Selecionar arquivo externo
-        self.select_file_btn = QPushButton("Selecionar Vídeo Externo")
+        self.select_file_btn = QPushButton("Selecionar Vídeo")
         
         video_layout.addWidget(QLabel("Vídeos locais (data/input):"))
         video_layout.addWidget(self.local_video_combobox)
@@ -82,8 +80,8 @@ class MainWindow(QMainWindow):
         video_group.setLayout(video_layout)
 
         # Botões de ação
-        self.process_btn = QPushButton("Processar Vídeo")
-        self.reprocess_btn = QPushButton("Reprocessar Vídeo")
+        self.process_btn = QPushButton("Analisar Vídeo")
+        self.reprocess_btn = QPushButton("Reanalisar Vídeo")
         self.reprocess_btn.setEnabled(False)
         self.cancel_btn = QPushButton("Cancelar")
         self.cancel_btn.setEnabled(False)
@@ -95,14 +93,14 @@ class MainWindow(QMainWindow):
         self.progress_bar.setTextVisible(True)
         
         # Status
-        self.status_label = QLabel("Pronto para processar vídeo")
+        self.status_label = QLabel("Pronto para analisar vídeo")
         self.status_label.setAlignment(Qt.AlignCenter)
         
         # Pré-visualização
         self.video_preview = QLabel()
         self.video_preview.setAlignment(Qt.AlignCenter)
         self.video_preview.setFixedSize(640, 360)
-        self.video_preview.setText("Pré-visualização aparecerá aqui")
+        self.video_preview.setText("Pré-visualização do vídeo")
         self.video_preview.setStyleSheet("border: 2px solid #ccc; border-radius: 5px;")
         
         # Layout
@@ -161,6 +159,10 @@ class MainWindow(QMainWindow):
             QProgressBar::chunk {
                 background-color: #4CAF50;
             }
+            QPushButton {
+                padding: 5px;
+                min-height: 25px;
+            }
         """)
 
     def center_window(self):
@@ -180,12 +182,12 @@ class MainWindow(QMainWindow):
         video_files = [f for f in os.listdir(input_dir) 
                       if f.lower().endswith(('.mp4', '.avi', '.mov', '.mkv'))]
         
-        self.local_video_combobox.addItem("-- Selecione um vídeo local --")
+        self.local_video_combobox.addItem("-- Selecione um vídeo --")
         if video_files:
             self.local_video_combobox.addItems(sorted(video_files))
-            self.update_status(f"{len(video_files)} vídeo(s) local(is) encontrado(s)")
+            self.update_status(f"{len(video_files)} vídeo(s) encontrado(s)")
         else:
-            self.local_video_combobox.addItem("Nenhum vídeo local encontrado")
+            self.local_video_combobox.addItem("Nenhum vídeo encontrado")
             self.update_status("Adicione vídeos na pasta data/input")
 
     def on_local_video_selected(self, index):
@@ -194,7 +196,7 @@ class MainWindow(QMainWindow):
             video_file = self.local_video_combobox.currentText()
             self.selected_file = os.path.join("data/input", video_file)
             self.show_video_preview(self.selected_file)
-            self.update_status(f"Vídeo local selecionado: {video_file}")
+            self.update_status(f"Vídeo selecionado: {video_file}")
             self.enable_processing_buttons(True)
 
     def select_external_file(self):
@@ -207,9 +209,8 @@ class MainWindow(QMainWindow):
         if file_path:
             self.selected_file = file_path
             self.show_video_preview(file_path)
-            self.update_status(f"Vídeo externo selecionado: {os.path.basename(file_path)}")
+            self.update_status(f"Vídeo selecionado: {os.path.basename(file_path)}")
             self.enable_processing_buttons(True)
-            # Reseta a seleção local
             self.local_video_combobox.setCurrentIndex(0)
 
     def enable_processing_buttons(self, enable):
@@ -218,7 +219,7 @@ class MainWindow(QMainWindow):
         self.reprocess_btn.setEnabled(enable)
 
     def show_video_preview(self, video_path):
-        """Exibe o primeiro frame do vídeo como pré-visualização"""
+        """Exibe o primeiro frame do vídeo"""
         try:
             cap = cv2.VideoCapture(video_path)
             ret, frame = cap.read()
@@ -238,9 +239,10 @@ class MainWindow(QMainWindow):
             self.video_preview.setText("Não foi possível carregar a pré-visualização")
 
     def process_video(self, force_reprocess=False):
+        """Inicia o processamento do vídeo"""
         email = self.email_input.text()
         if not email or "@" not in email:
-            QMessageBox.warning(self, "Erro", "Por favor, insira um e-mail válido.")
+            QMessageBox.warning(self, "Erro", "Por favor, insira um e-mail válido para receber o relatório.")
             return
         
         if not self.selected_file:
@@ -250,7 +252,7 @@ class MainWindow(QMainWindow):
         if force_reprocess:
             reply = QMessageBox.question(
                 self, 'Confirmação',
-                'Deseja reprocessar este vídeo? Isso substituirá os resultados anteriores.',
+                'Deseja reanalisar este vídeo? Isso gerará um novo relatório.',
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No
             )
             if reply != QMessageBox.Yes:
@@ -270,69 +272,57 @@ class MainWindow(QMainWindow):
         self.processing_thread.start()
     
     def reprocess_video(self):
+        """Reanalisa o vídeo selecionado"""
         self.process_video(force_reprocess=True)
     
     def cancel_processing(self):
+        """Cancela o processamento em andamento"""
         if self.processing_thread and self.processing_thread.isRunning():
             reply = QMessageBox.question(
                 self, 'Confirmação',
-                'Deseja realmente cancelar o processamento?',
+                'Deseja realmente cancelar a análise?',
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No
             )
             if reply == QMessageBox.Yes:
                 self.processing_thread.requestInterruption()
-                self.update_status("Processamento cancelado", error=True)
+                self.update_status("Análise cancelada", error=True)
                 self.progress_bar.setValue(0)
     
     def update_progress(self, value, message):
+        """Atualiza a barra de progresso e status"""
         self.progress_bar.setValue(value)
         self.update_status(message)
         
-        # Efeito visual de carregamento para valores baixos
+        # Atualiza cor da barra de progresso
         if value < 30:
-            self.progress_bar.setStyleSheet("""
-                QProgressBar::chunk {
-                    background-color: #FFA500;
-                }
-            """)
+            self.progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #FFA500; }")
         elif value < 70:
-            self.progress_bar.setStyleSheet("""
-                QProgressBar::chunk {
-                    background-color: #1E90FF;
-                }
-            """)
+            self.progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #1E90FF; }")
         else:
-            self.progress_bar.setStyleSheet("""
-                QProgressBar::chunk {
-                    background-color: #4CAF50;
-                }
-            """)
+            self.progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #4CAF50; }")
     
     def update_status(self, message, error=False):
+        """Atualiza a mensagem de status"""
         self.status_label.setText(message)
-        if error:
-            self.status_label.setStyleSheet("color: #FF0000; font-weight: bold;")
-        else:
-            self.status_label.setStyleSheet("color: #666;")
+        self.status_label.setStyleSheet("color: #FF0000; font-weight: bold;" if error else "color: #666;")
     
     def reset_progress(self):
+        """Reseta a barra de progresso"""
         self.progress_bar.setValue(0)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar::chunk {
-                background-color: #4CAF50;
-            }
-        """)
+        self.progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #4CAF50; }")
     
     def on_processing_finished(self, success, message):
+        """Lida com a conclusão do processamento"""
         self.set_processing_ui(False)
         if success:
-            self.update_status("Processamento concluído com sucesso!")
+            self.update_status("Análise concluída com sucesso!")
             QMessageBox.information(self, "Sucesso", message)
         else:
             self.update_status(f"Erro: {message}", error=True)
             QMessageBox.critical(self, "Erro", message)
     
     def set_processing_ui(self, processing):
+        """Configura a UI durante o processamento"""
         self.select_file_btn.setEnabled(not processing)
         self.process_btn.setEnabled(not processing)
         self.reprocess_btn.setEnabled(not processing and bool(self.selected_file))
@@ -340,10 +330,11 @@ class MainWindow(QMainWindow):
         self.email_input.setEnabled(not processing)
     
     def closeEvent(self, event):
+        """Lida com o fechamento da janela"""
         if self.processing_thread and self.processing_thread.isRunning():
             reply = QMessageBox.question(
-                self, 'Processamento em andamento',
-                'Um vídeo está sendo processado. Deseja realmente sair?',
+                self, 'Análise em andamento',
+                'Uma análise está em progresso. Deseja realmente sair?',
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No
             )
             if reply == QMessageBox.Yes:
